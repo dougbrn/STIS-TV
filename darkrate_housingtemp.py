@@ -58,17 +58,17 @@ def retrieve_data(dataset,image_dir = '.'):
     """
     images = glob.glob(image_dir+dataset)
 
-    #Subset of images with known housing temperatures and in the appropriate date range
+    # Subset of images with known housing temperatures and in the appropriate date range
     image_subset=[]
     dateobs_subset = []
     for image in images:
-        #Ensure a valid header temperature value and 1x1 binning
+        # Ensure a valid header temperature value and 1x1 binning
         if fits.getheader(image,1)['OCCDHTAV'] != -1.0 and fits.getheader(image)['BINAXIS1'] == 1:
-            #retrieve datetime
+            # retrieve datetime
             yyyy,mo,dd = fits.getheader(image)['TDATEOBS'].split('-')
             hh,mn,ss = fits.getheader(image)['TTIMEOBS'].split(':')
             dateobs = datetime.datetime(int(yyyy),int(mo),int(dd),int(hh),int(mn),int(ss))
-            #Append to lists
+            # Append to lists
             image_subset.append(image)
             dateobs_subset.append(dateobs)
 
@@ -77,6 +77,7 @@ def retrieve_data(dataset,image_dir = '.'):
     return image_subset, dateobs_subset, first_dark, last_dark
 
 # ------------------------------------------------------------------------------
+
 
 def anneal_split(image_subset,dateobs_subset,date_start,date_end,boundaries):
     """Split darks into separate anneal periods.
@@ -113,24 +114,23 @@ def anneal_split(image_subset,dateobs_subset,date_start,date_end,boundaries):
     for region in range(len(boundaries)):
         ann_hist.append(boundaries[region]['start'])
 
-
     anneals = np.array(ann_hist)[(np.array(ann_hist) < date_end) &
      (np.array(ann_hist) > date_start)]
 
     n_periods = len(anneals) + 1
     print("--> {} Anneal Periods defined.".format(n_periods))
 
-    #Split Subset into groups based on Anneal History
+    # Split Subset into groups based on Anneal History
     ann_list = [[] for _ in range(n_periods)]
 
     for image, im_datetime in zip(image_subset,dateobs_subset):
 
-        #Find nearest anneal period
+        # Find nearest anneal period
         nearest_ann = min(anneals, key = lambda x:abs(x-im_datetime))
         ann_idx, = np.where(anneals == nearest_ann)[0]
-        ann_idx += 1 #If darks_before == True, which is now always the case
+        ann_idx += 1 # If darks_before == True, which is now always the case
 
-        #Determine whether the dark occured before or after the nearest anneal
+        # Determine whether the dark occured before or after the nearest anneal
         if im_datetime-nearest_ann > datetime.timedelta(0):
             ann_list[ann_idx].append(image)
         else:
