@@ -68,7 +68,7 @@ for refpath, path_order, color in zip(refpath_list, order_list, color_list):
         break
 
     sigma = 5
-    mask = np.log10(dark_data / EXPTIME) < 0.0
+    mask = (dark_data / EXPTIME) > 0.0
     darkdiff = (dark_data - refscaled)
     masked = darkdiff[mask]
 
