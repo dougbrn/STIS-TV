@@ -14,13 +14,23 @@ mpl.rcParams.update({'font.size': 16})
 
 # Select Dark
 #source = "ocqq9tq6q_flt.fits"
+
 source_path = "/Users/dbranton/STIS/forks/refstis/refstis/tests/data/sources/"
-source_list = glob.glob(os.path.join(source_path, '*'))
+source_list = glob.glob(os.path.join(source_path, 'obn315gwq*'))
+"""
 refpath_list = ["/Users/dbranton/STIS/forks/refstis/refstis/tests/data/products/orig_firstorder/",
+                "/Users/dbranton/STIS/forks/refstis/refstis/tests/data/products/orig_secorder/",
                 "/Users/dbranton/STIS/forks/refstis/refstis/tests/data/products/diffref_firstorder/"]
-order_list = ['First-Order', 'First-Order']
-color_list = ['k', 'r']
-make_plot = True
+order_list = ['First-Order', 'Second-Order', 'First-Order']
+color_list = ['k', 'r', 'b']
+
+"""
+refpath_list = ["/Users/dbranton/STIS/forks/refstis/refstis/tests/data/products/orig_firstorder/",
+                "/Users/dbranton/STIS/forks/refstis/refstis/tests/data/products/orig_secorder/"]
+order_list = ['First-Order', 'Second-Order']
+color_list = ['k', 'cyan']
+
+make_plot = False
 
 
 for idx, source in enumerate(source_list):
@@ -33,6 +43,7 @@ for idx, source in enumerate(source_list):
     EXPTIME = dark[1].header['EXPTIME']
     OCCDHTAV = dark[1].header['OCCDHTAV']
     print(OCCDHTAV)
+    print(TDATEOBS)
     stats_text = ''
     DRK_VS_T = 0.07
     dark_data = dark[1].data
@@ -42,7 +53,7 @@ for idx, source in enumerate(source_list):
     if make_plot:
         fig = plt.figure(figsize=(15, 10))
         fig.dpi = 100
-        binwidth = 0.5
+        binwidth = 20
 
     if "Second-Order" in order_list:
         # Read in second-order parameters
@@ -59,16 +70,21 @@ for idx, source in enumerate(source_list):
 
 
     # Grab and scale dark reference files for comparison
-    for refpath, path_order, color in zip(refpath_list, order_list, color_list):
+    for hist_idx, contents in enumerate(zip(refpath_list, order_list, color_list)):
+        refpath, path_order, color = contents
         reffile = fits.open(os.path.join(refpath, reffile_name))
         REF_TEMP = reffile[0].header['REF_TEMP']
-        refdata = reffile[1].data * EXPTIME / ATODGAIN
+        refdata = reffile[1].data
+
         if path_order == "First-Order":
+            refdata = refdata * EXPTIME / ATODGAIN
             refscaled = refdata * (1 + DRK_VS_T * (OCCDHTAV - REF_TEMP))
         elif path_order == "Second-Order":
-            dark_svrates = np.copy(refdata)
+            dark_svrates = np.copy(dark_data) / EXPTIME * ATODGAIN  # Use values from dark (not ref) to scale temp
+            dark_svrates = dark_svrates / (1 + 0.07 * (float(OCCDHTAV) - REF_TEMP))  # Approx ref temp dark rates
             dark_svrates[dark_svrates <= 0] = 10 ** -3.0
-            dark_svrates[dark_svrates >= 10 ** 1.0] = 10 ** 1.0
+            #dark_svrates[dark_svrates >= 10 ** 2.0] = 10 ** 2.0
+
             sv_matrix = np.array(compute_sv(result_params, np.log10(dark_svrates), year))
             refdata = refdata * EXPTIME / ATODGAIN
             refscaled = refdata * (1 + (sv_matrix) * (OCCDHTAV - REF_TEMP))
@@ -77,21 +93,38 @@ for idx, source in enumerate(source_list):
             break
 
         sigma = 5
-        mask = (dark_data / EXPTIME) > 0.0
+
+        # General
+        # -----------------------------------
+        mask = np.log10(dark_data / EXPTIME) < 2.0
+        binwidth = 0.5
+        # -----------------------------------
+        # OR
+        # Hot pixels
+        # -----------------------------------
+        #mask = np.log10(dark_data/EXPTIME) > 1.0
+        #binwidth = 50
+        # -----------------------------------
+
         darkdiff = (dark_data - refscaled)
+        mask = mask * dq_flag
+        value_mask = (darkdiff > -3000) * (darkdiff < 1000)
+        mask = mask * value_mask
         masked = darkdiff[mask]
 
         sclipped = sigma_clip(masked, sigma=sigma)
         sclipped = np.ma.compressed(sclipped)
 
         if make_plot:
-            plt.hist(np.ravel(sclipped), bins=np.arange(min(sclipped), max(sclipped) + binwidth, binwidth), alpha=0.7,
-                     label="{} : {}".format(path_order, REF_TEMP), color=color)
+
+            plt.hist(np.ravel(sclipped), bins=np.arange(min(sclipped), max(sclipped) + binwidth, binwidth),
+                     alpha=0.8-hist_idx*0.2, label="{} : {}".format(path_order, REF_TEMP), color=color)
 
             stats_text = "{} ({}) Median: {}\n".format(path_order, REF_TEMP, str(np.round(np.median(np.ravel(sclipped)),
                                                                                       decimals=3)))
             stats_text += "{} ({}) Standard Deviation: {}\n".format(path_order, REF_TEMP, np.round(np.std(np.ravel(sclipped)),
                                                                                                decimals=3))
+
         print("{} ({}) Median: {}".format(path_order, REF_TEMP, np.median(np.ravel(sclipped))))
         print("{} ({}) Standard Deviation: {}".format(path_order, REF_TEMP, np.std(np.ravel(sclipped))))
 
