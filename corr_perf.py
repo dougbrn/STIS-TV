@@ -154,9 +154,8 @@ for key in keys:
     print(year)
     print(pdiff_arr)
     print(err_arr)
-
-    ax.errorbar(temp_arr, pdiff_arr, err_arr, label=str(np.round(year_label, 3)), fmt='.', capsize=2,
-                color=plt.cm.cool((year_label - 2009)/(2021-2009)))
+    color = plt.cm.cool((year_label - 2009)/(2021-2009))
+    ax.errorbar(temp_arr, pdiff_arr, err_arr, label=str(np.round(year_label, 3)), fmt='.', capsize=2, color=color)
     pdiff_all.extend(pdiff_arr)
     temp_all.extend(temp_arr)
     err_all.extend(err_arr)
@@ -169,13 +168,13 @@ ax.set_xlim(17.75, 24.25)
 ax.set_ylabel("Percent Improvement on Dark Residuals for a {}x1024 Slit".format(slit_width))
 ax.set_xlabel(r"CCD Housing Temperature ($\degree$C)")
 ax.grid()
-ax.set_title("Performance Benefit of a Second-Order Temperature Correction")
-ax.fill_between([15, 25], -5, 0, alpha=0.1, color='r')
-ax.fill_between([15, 25], 0, 5, alpha=0.1, color='k')
+ax.set_title("Performance Comparison of First-Order and Second-Order Temperature Correction")
+ax.fill_between([15, 25], -5, 0, alpha=0.3, color='salmon')
+ax.fill_between([15, 25], 0, 5, alpha=0.2, color='slateblue')
 ax.text(0.5, 0.9, 'Second-Order', horizontalalignment='center', verticalalignment='top', transform=ax.transAxes,
         color='k')
 ax.text(0.5, 0.1, 'First-Order', horizontalalignment='center', verticalalignment='bottom', transform=ax.transAxes,
-        color='r')
+        color='k')
 handles, labels = ax.get_legend_handles_labels()
 hl = sorted(zip(handles, labels),
             key=operator.itemgetter(1))
@@ -184,6 +183,7 @@ handles2, labels2 = zip(*hl)
 ax.legend(handles2, labels2)
 
 plt.show()
+
 
 
 
