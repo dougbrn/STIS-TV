@@ -10,8 +10,9 @@ from scipy import stats
 from astropy.stats import sigma_clip
 from multiprocessing import Pool
 import matplotlib as mpl
-plt.style.use('seaborn-white')
+plt.style.use('seaborn-paper')
 mpl.rcParams.update({'font.size': 18})
+plt.rcParams["font.family"] = "Times New Roman"
 
 def compute_scalevalue(pix):
     #Outlier rejection --  2 layers. Why? Extreme elevated pixels can mask
@@ -92,27 +93,49 @@ if __name__ == "__main__":
 
     total_pix = len(delta_scalevals)
 
-    print("Percent of Pixels within 0.03: {}% ".format((len(delta_scalevals[np.where(abs(delta_scalevals) < 0.03)])/total_pix)*100))
-    print("Percent of Pixels within 0.05: {}%".format((len(delta_scalevals[np.where(abs(delta_scalevals) < 0.05)])/total_pix)*100))
-    print("Percent of Pixels within 0.10: {}%".format((len(delta_scalevals[np.where(abs(delta_scalevals) < 0.10)])/total_pix)*100))
-
-    fig, ax = plt.subplots(1,1,figsize=(15,10))
+    fig, ax = plt.subplots(1, 1, figsize=(10, 6))
     fig.dpi = 200
     sigma = 5
-    delta_clipped = sigma_clip(delta_scalevals,sigma=sigma)
+    font_size = 12
+    delta_clipped = sigma_clip(delta_scalevals, sigma=sigma)
     delta_clipped = np.ma.compressed(delta_clipped)
 
-    bins = np.histogram(delta_clipped,bins=50)[1]
-    ax.hist(delta_clipped,histtype='bar',ec='black',bins=bins,alpha=0.7,color='b')
-    ax.axvline(0.03,linestyle = '--',color = 'lightgreen',label = "Percent of Pixels within 0.03: {}% ".format((len(delta_scalevals[np.where(abs(delta_scalevals) < 0.03)])/total_pix)*100))
-    ax.axvline(0.05,linestyle = '--',color = 'orange',label = "Percent of Pixels within 0.05: {}% ".format((len(delta_scalevals[np.where(abs(delta_scalevals) < 0.05)])/total_pix)*100))
-    ax.axvline(0.10,linestyle = '--',color = 'red', label = "Percent of Pixels within 0.10: {}% ".format((len(delta_scalevals[np.where(abs(delta_scalevals) < 0.10)])/total_pix)*100))
+    delta_values, delta_base = np.histogram(delta_clipped, bins=40)
+    delta_cumulative = np.cumsum(delta_values)
+    percentile = delta_cumulative / len(delta_clipped) * 100
+    p_vals = [50, 66, 75, 95]
+    p_delta = np.interp(p_vals, percentile, delta_base[:-1], period=360)
+    print(p_delta)
 
+    # plot the cumulative function
+    ax.plot(delta_base[:-1], percentile, c='k', label=" Delta Scale Values")
+    ax.set_title("Change in Pixel Scale Value after an Anneal")
+    ax.set_ylabel("Percentile")
+    ax.set_xlabel(r"Delta Scale Value")
+    ax.set_ylim(min(percentile), 100)
+    ax.set_xlim(0, p_delta[-1])
+    ax.grid()
 
-    ax.set_xlim(-0.025,1.025)
-    ax.set_title("Scale Value Anneal Difference for {}x{} Pixel Cutout".format(cutout_size,cutout_size))
-    ax.set_ylabel("Frequency")
-    ax.set_xlabel(" Delta Scale Value")
-    plt.legend()
-    plt.savefig("plots/delta_scaleval.png")
+    last_val = 0
+    last_delta = min(percentile)
+    for val, delta in zip(p_vals, p_delta):
+        ax.axvline(delta, linestyle='--', color='k', alpha=0.5)
+        p_mask = (percentile < val) * (percentile > last_val)
+        unc_reg = np.append(delta_base[:-1][p_mask], delta)
+        p_reg = np.append(percentile[p_mask], val)
+        unc_reg = np.append(np.array([last_delta]), unc_reg)
+        p_reg = np.append(np.array([last_val]), p_reg)
+
+        ax.fill_between(unc_reg, 0, p_reg, alpha=0.2)
+        ax.text(delta - 0.005 * max(delta_clipped), 30, '{}th Percentile'.format(val), horizontalalignment='center',
+                verticalalignment='center', transform=ax.transData, rotation=90, fontsize=font_size)
+        last_val = val
+        last_delta = delta
+
+    for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] +
+        ax.get_xticklabels() + ax.get_yticklabels()):
+        item.set_fontsize(font_size + 2)
+
+    plt.savefig("plots/delta_scaleval_paper.png")
+
     plt.show()

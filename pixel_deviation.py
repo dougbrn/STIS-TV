@@ -12,8 +12,8 @@ from scipy import stats
 from astropy.stats import sigma_clip
 from multiprocessing import Pool
 import matplotlib as mpl
-plt.style.use('seaborn-white')
-mpl.rcParams.update({'font.size': 18})
+plt.style.use('seaborn-paper')
+mpl.rcParams.update({'font.size': 14})
 
 datadir = "/Users/dbranton/STIS/refstis/refstis/testdata/2013data/backup_flts/*flt.fits"
 darks = glob.glob(datadir)

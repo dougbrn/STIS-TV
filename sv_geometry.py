@@ -30,8 +30,8 @@ def compute_scalevalue(pix):
     #Second layer of outlier rejection
     regression = ols("data ~ x", data = dict(data=outcorr_darkrates,x=outcorr_temps)).fit()
     test = regression.outlier_test()
-    outcorr_temps = [outcorr_temps[i] for i,t in enumerate(test['bonf(p)'].tolist()) if t > 0.5]
-    outcorr_darkrates = [outcorr_darkrates[i] for i,t in enumerate(test['bonf(p)'].tolist()) if t > 0.5]
+    outcorr_temps = [outcorr_temps[i] for i, t in enumerate(test['bonf(p)'].tolist()) if t > 0.5]
+    outcorr_darkrates = [outcorr_darkrates[i] for i, t in enumerate(test['bonf(p)'].tolist()) if t > 0.5]
 
     slope,intercept,r_value,p_value,std_err = stats.linregress(outcorr_temps,outcorr_darkrates)
     scale_value = slope/(intercept + slope*18.0)

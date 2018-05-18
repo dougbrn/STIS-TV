@@ -3,20 +3,24 @@ import numpy as np
 import matplotlib.pyplot as plt
 import csv
 from astropy.stats import sigma_clip
+from scipy import interpolate
 import os
 import datetime
 from pixelcorrection import compute_sv
 import matplotlib as mpl
 import time
 import glob
-plt.style.use('seaborn-white')
-mpl.rcParams.update({'font.size': 16})
+import json
+plt.style.use('seaborn-paper')
+mpl.rcParams.update({'font.size': 14})
+plt.rcParams["font.family"] = "Times New Roman"
 
 # Select Dark
 #source = "ocqq9tq6q_flt.fits"
 
-source_path = "/Users/dbranton/STIS/forks/refstis/refstis/tests/data/sources/"
-source_list = glob.glob(os.path.join(source_path, 'obn315gwq*'))
+source_path = "/Users/dbranton/STIS/forks/refstis/refstis/tests/data/weekdarks/"
+source_list = glob.glob(os.path.join(source_path, 'obn31dqgq_flt.fits'))
+
 """
 refpath_list = ["/Users/dbranton/STIS/forks/refstis/refstis/tests/data/products/orig_firstorder/",
                 "/Users/dbranton/STIS/forks/refstis/refstis/tests/data/products/orig_secorder/",
@@ -26,12 +30,12 @@ color_list = ['k', 'r', 'b']
 
 """
 refpath_list = ["/Users/dbranton/STIS/forks/refstis/refstis/tests/data/products/orig_firstorder/",
-                "/Users/dbranton/STIS/forks/refstis/refstis/tests/data/products/orig_secorder/"]
+                "/Users/dbranton/STIS/forks/refstis/refstis/tests/data/products/orig_firstorder/"]
 order_list = ['First-Order', 'Second-Order']
-color_list = ['k', 'cyan']
+color_list = ['k', 'mediumpurple']
 
-make_plot = False
-
+make_plot = True
+write_fits = False
 
 for idx, source in enumerate(source_list):
 
@@ -51,8 +55,8 @@ for idx, source in enumerate(source_list):
     reffile_name = dark[0].header['DARKFILE'].split('$')[-1]
 
     if make_plot:
-        fig = plt.figure(figsize=(15, 10))
-        fig.dpi = 100
+        fig, ax = plt.subplots(1, 1, figsize=(4, 8))
+        fig.dpi = 200
         binwidth = 20
 
     if "Second-Order" in order_list:
@@ -68,8 +72,11 @@ for idx, source in enumerate(source_list):
         yearDuration = time.mktime(startOfNextYear.timetuple()) - time.mktime(startOfThisYear.timetuple())
         year = date.year + yearElapsed / yearDuration
 
-
     # Grab and scale dark reference files for comparison
+    mu_list = []
+    std_list = []
+    resid_list = []
+    lvl_list = []
     for hist_idx, contents in enumerate(zip(refpath_list, order_list, color_list)):
         refpath, path_order, color = contents
         reffile = fits.open(os.path.join(refpath, reffile_name))
@@ -82,12 +89,24 @@ for idx, source in enumerate(source_list):
         elif path_order == "Second-Order":
             dark_svrates = np.copy(dark_data) / EXPTIME * ATODGAIN  # Use values from dark (not ref) to scale temp
             dark_svrates = dark_svrates / (1 + 0.07 * (float(OCCDHTAV) - REF_TEMP))  # Approx ref temp dark rates
-            dark_svrates[dark_svrates <= 0] = 10 ** -3.0
-            #dark_svrates[dark_svrates >= 10 ** 2.0] = 10 ** 2.0
+            dark_svrates[dark_svrates <= 10**-2.5] = 10 ** -2.5
+            dark_svrates[dark_svrates >= 10 ** 1.0] = 10 ** 1.0
+            #sv_matrix = np.array(compute_sv(result_params, np.log10(dark_svrates), year))
 
-            sv_matrix = np.array(compute_sv(result_params, np.log10(dark_svrates), year))
+
+            scale_dict = json.load(open('scaleval_data.json'))
+            gridpoints = np.array(np.meshgrid(scale_dict['Darkrate'],
+                                              scale_dict['Datetimes'])).T.reshape(-1, 2)
+            xlen, ylen = np.shape(dark_svrates)
+            # gridvals = scalevalues.reshape(xlen*ylen,1)
+            gridvals = np.ravel(scale_dict['Values'])
+            range_points = np.array(np.meshgrid(np.ravel(np.log10(dark_svrates)), [year])).T.reshape(-1, 2)
+            sv_matrix = interpolate.griddata(gridpoints, gridvals, range_points, method='linear').reshape(xlen, ylen)
+
             refdata = refdata * EXPTIME / ATODGAIN
-            refscaled = refdata * (1 + (sv_matrix) * (OCCDHTAV - REF_TEMP))
+
+            refscaled = refdata * (1 + sv_matrix * (OCCDHTAV - REF_TEMP))
+
         else:
             print("Not a supported Order")
             break
@@ -96,7 +115,7 @@ for idx, source in enumerate(source_list):
 
         # General
         # -----------------------------------
-        mask = np.log10(dark_data / EXPTIME) < 2.0
+        mask = np.log10(dark_data / EXPTIME) < 1.0
         binwidth = 0.5
         # -----------------------------------
         # OR
@@ -107,6 +126,8 @@ for idx, source in enumerate(source_list):
         # -----------------------------------
 
         darkdiff = (dark_data - refscaled)
+        print("Uncorrected Median: ", np.median(np.ravel(dark_data)))
+        print("Uncorrected Standard Deviation: ", np.std(np.ravel(dark_data)))
         mask = mask * dq_flag
         value_mask = (darkdiff > -3000) * (darkdiff < 1000)
         mask = mask * value_mask
@@ -118,20 +139,46 @@ for idx, source in enumerate(source_list):
         if make_plot:
 
             plt.hist(np.ravel(sclipped), bins=np.arange(min(sclipped), max(sclipped) + binwidth, binwidth),
-                     alpha=0.8-hist_idx*0.2, label="{} : {}".format(path_order, REF_TEMP), color=color)
+                     alpha=0.8-hist_idx*0.2, color=color,
+                     label=r"{} : $\mu$ = {},  $\sigma$ = {}".format(path_order,
+                                                               np.round(np.median(np.ravel(sclipped)), decimals=3),
+                                                               np.round(np.std(np.ravel(sclipped)), decimals=3)))
 
-            stats_text = "{} ({}) Median: {}\n".format(path_order, REF_TEMP, str(np.round(np.median(np.ravel(sclipped)),
-                                                                                      decimals=3)))
-            stats_text += "{} ({}) Standard Deviation: {}\n".format(path_order, REF_TEMP, np.round(np.std(np.ravel(sclipped)),
-                                                                                               decimals=3))
+        mu_list.append(str(np.round(np.median(np.ravel(sclipped)), decimals=3)))
+        std_list.append(str(np.round(np.std(np.ravel(sclipped)), decimals=3)))
+        resid_list.append(darkdiff)
+        lvl_list.append(sclipped)
+
 
         print("{} ({}) Median: {}".format(path_order, REF_TEMP, np.median(np.ravel(sclipped))))
         print("{} ({}) Standard Deviation: {}".format(path_order, REF_TEMP, np.std(np.ravel(sclipped))))
 
+    if write_fits:
+        for resid, order in zip(resid_list, order_list):
+            hdu = fits.PrimaryHDU(abs(resid))
+            hdu.writeto('{}.fits'.format(order), clobber = True)
+    print(mu_list)
+    print(lvl_list)
+    print((abs(float(mu_list[1])) - abs(float(mu_list[0])))/abs(float(mu_list[0])) * 100)
     if make_plot:
-        plt.title("Comparing Residual Distribution in {}".format(TDATEOBS[0:4]))
-        plt.legend()
-        plt.grid()
-        plt.xlabel("Counts")
-        plt.ylabel("Frequency")
+        font_size = 12
+        ax.set_title(r"Residual Distribution in {} (Temp: {} $\degree$C)".format(TDATEOBS[0:4], OCCDHTAV))
+        ax.legend(fontsize=font_size)
+        ax.grid()
+        ax.set_xlabel("Counts")
+        ax.set_ylabel("Frequency")
+        """
+        for i in range(len(mu_list)):
+            ax.text(0.05, 0.8-0.03*i, r'{}: $\mu={},\ \sigma={}$'.format(order_list[i],
+                                                                            mu_list[i],
+                                                                            std_list[i]), transform=ax.transAxes,
+                    fontsize=8)
+        """
+        for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] +
+                     ax.get_xticklabels() + ax.get_yticklabels()):
+            item.set_fontsize(font_size + 2)
+
+        plt.savefig('resid_{}_paper.png'.format(TDATEOBS[0:4]))
         plt.show()
+
+
