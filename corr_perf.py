@@ -22,7 +22,7 @@ plt.rcParams["font.family"] = "Times New Roman"
 weekdark_path = "/Users/dbranton/STIS/forks/refstis/refstis/tests/data/weekdarks/"
 weekdark_list = glob.glob(os.path.join(weekdark_path, '*'))
 
-refpath_list = ["/Users/dbranton/STIS/forks/refstis/refstis/tests/data/products/diffref_firstorder/",
+refpath_list = ["/Users/dbranton/STIS/forks/refstis/refstis/tests/data/products/orig_firstorder/",
                 "/Users/dbranton/STIS/forks/refstis/refstis/tests/data/products/orig_firstorder/"]
 order_list = ['First-Order', 'Second-Order']
 
@@ -102,8 +102,8 @@ for idx, source in enumerate(weekdark_list):
             break
 
         # Create slit cutouts
-        n_row = 35
-        slit_width = 4
+        n_row = 35 #35
+        slit_width = 7
 
         dark_cutout = dark_data[n_row:n_row + slit_width]
         ref_cutout = refscaled[n_row:n_row + slit_width]
@@ -184,7 +184,7 @@ p = np.poly1d(linear_fit)
 ax.plot(temp_all, p(temp_all), color='k')
 ax.set_ylim(-4, 10)
 ax.set_xlim(17.75, 24.25)
-ax.set_ylabel("Percent Improvement on Dark Residuals")
+ax.set_ylabel("Additional Dark Level Removed by Second-Order Method (%)")
 ax.set_xlabel(r"CCD Housing Temperature ($\degree$C)")
 ax.grid()
 ax.set_title("Performance Comparison of First-Order and Second-Order Temperature Correction")
@@ -203,7 +203,7 @@ for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] +
     item.set_fontsize(font_size + 2)
 
 ax.legend(handles2, labels2, fontsize = font_size)
-#plt.savefig("Plots/slit_perf_paper.png")
+plt.savefig("Plots/slit_perf_paper.png")
 plt.show()
 
 
