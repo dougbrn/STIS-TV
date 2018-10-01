@@ -12,15 +12,15 @@ import time
 import glob
 import json
 plt.style.use('seaborn-paper')
-mpl.rcParams.update({'font.size': 14})
+mpl.rcParams.update({'font.size': 20})
 plt.rcParams["font.family"] = "Times New Roman"
 
 # Select Dark
-#source = "ocqq9tq6q_flt.fits"
-
+source_2017 = "odbp4vyqq_flt.fits"
+source_2011 = 'obn31dqgq_flt.fits'
 source_path = "/Users/dbranton/STIS/forks/refstis/refstis/tests/data/weekdarks/"
-source_list = glob.glob(os.path.join(source_path, 'obn31dqgq_flt.fits'))
-
+#source_list = glob.glob(os.path.join(source_path, source_2017))
+source_list = [os.path.join(source_path, source_2011), os.path.join(source_path, source_2017)]
 """
 refpath_list = ["/Users/dbranton/STIS/forks/refstis/refstis/tests/data/products/orig_firstorder/",
                 "/Users/dbranton/STIS/forks/refstis/refstis/tests/data/products/orig_secorder/",
@@ -35,7 +35,7 @@ order_list = ['First-Order', 'Second-Order']
 color_list = ['k', 'mediumpurple']
 
 make_plot = True
-write_fits = False
+write_fits = True
 
 for idx, source in enumerate(source_list):
 
@@ -55,7 +55,7 @@ for idx, source in enumerate(source_list):
     reffile_name = dark[0].header['DARKFILE'].split('$')[-1]
 
     if make_plot:
-        fig, ax = plt.subplots(1, 1, figsize=(4, 8))
+        fig, ax = plt.subplots(1, 1, figsize=(6, 8))
         fig.dpi = 200
         binwidth = 20
 
@@ -161,11 +161,12 @@ for idx, source in enumerate(source_list):
     print(lvl_list)
     print((abs(float(mu_list[1])) - abs(float(mu_list[0])))/abs(float(mu_list[0])) * 100)
     if make_plot:
-        font_size = 12
+        font_size = 14
         ax.set_title(r"Residual Distribution in {} (Temp: {} $\degree$C)".format(TDATEOBS[0:4], OCCDHTAV))
         ax.legend(fontsize=font_size)
         ax.grid()
-        ax.set_xlabel("Counts")
+        ax.set_xlabel("Residual Counts")
+        ax.set_ylim(0, 30000)
         ax.set_ylabel("Frequency")
         """
         for i in range(len(mu_list)):
@@ -178,7 +179,7 @@ for idx, source in enumerate(source_list):
                      ax.get_xticklabels() + ax.get_yticklabels()):
             item.set_fontsize(font_size + 2)
 
-        plt.savefig('resid_{}_paper.png'.format(TDATEOBS[0:4]))
+        plt.savefig('Plots/resid_{}_paper.png'.format(TDATEOBS[0:4]))
         plt.show()
 
 
